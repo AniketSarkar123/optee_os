@@ -41,6 +41,10 @@
  * @reserved:	Reserved for future uses
  */
 struct ti_sci_secure_msg_hdr {
+    uint16_t type;
+    uint8_t host;
+    uint8_t flags;
+    uint8_t seq;
 	uint16_t checksum;
 	uint16_t reserved;
 } __packed;
@@ -57,7 +61,7 @@ struct ti_sci_msg_hdr {
 	uint16_t type;
 	uint8_t host;
 	uint8_t seq;
-#define TI_SCI_MSG_FLAG(val)			(1<<(val))
+#define TI_SCI_MSG_FLAG(val)			BIT(val)
 #define TI_SCI_FLAG_REQ_GENERIC_NORESPONSE	0x0
 #define TI_SCI_FLAG_REQ_ACK_ON_RECEIVED		TI_SCI_MSG_FLAG(0)
 #define TI_SCI_FLAG_REQ_ACK_ON_PROCESSED	TI_SCI_MSG_FLAG(1)

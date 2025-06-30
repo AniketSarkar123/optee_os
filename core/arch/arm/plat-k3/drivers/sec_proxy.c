@@ -16,7 +16,10 @@
 #include <string.h>
 #include <trace.h>
 
-#include "sec_proxy.h"
+// #include "sec_proxy.h"
+#include<ti_sci_transport.h>
+
+#define TI_SCI_MAX_MESSAGE_SIZE		52
 
 /* SEC PROXY RT THREAD STATUS */
 #define RT_THREAD_STATUS_REG            0x0
@@ -118,7 +121,7 @@ static TEE_Result k3_sec_proxy_verify_thread(uint32_t dir)
  * k3_sec_proxy_send() - Send data over a Secure Proxy thread
  * @msg: Pointer to k3_sec_proxy_msg
  */
-TEE_Result k3_sec_proxy_send(const struct k3_sec_proxy_msg *msg)
+TEE_Result tii_sci_transport_send(const struct ti_sci_msg *msg)
 {
 	struct k3_sec_proxy_thread *spt = &spts[SEC_PROXY_TX_THREAD];
 	int num_words = 0;
@@ -136,9 +139,9 @@ TEE_Result k3_sec_proxy_send(const struct k3_sec_proxy_msg *msg)
 	}
 
 	/* Check the message size. */
-	if (msg->len > SEC_PROXY_MAX_MSG_SIZE) {
+	if (msg->len > TI_SCI_MAX_MESSAGE_SIZE) {
 		EMSG("Thread %s message length %zu > max msg size %d",
-		     spt->name, msg->len, SEC_PROXY_MAX_MSG_SIZE);
+		     spt->name, msg->len, TI_SCI_MAX_MESSAGE_SIZE);
 		return TEE_ERROR_BAD_STATE;
 	}
 
@@ -179,7 +182,7 @@ TEE_Result k3_sec_proxy_send(const struct k3_sec_proxy_msg *msg)
  * k3_sec_proxy_recv() - Receive data from a Secure Proxy thread
  * @msg: Pointer to k3_sec_proxy_msg
  */
-TEE_Result k3_sec_proxy_recv(struct k3_sec_proxy_msg *msg)
+TEE_Result tii_sci_transport_recv(struct ti_sci_msg *msg)
 {
 	struct k3_sec_proxy_thread *spt = &spts[SEC_PROXY_RX_THREAD];
 	int num_words = 0;
@@ -224,6 +227,7 @@ TEE_Result k3_sec_proxy_recv(struct k3_sec_proxy_msg *msg)
 	 */
 	if (data_reg <= (spt->data + SEC_PROXY_DATA_END_OFFS))
 		io_read32(spt->data + SEC_PROXY_DATA_END_OFFS);
+	
 
 	return TEE_SUCCESS;
 }
@@ -231,7 +235,7 @@ TEE_Result k3_sec_proxy_recv(struct k3_sec_proxy_msg *msg)
 /**
  * k3_sec_proxy_init() - Initialize the secure proxy threads
  */
-TEE_Result k3_sec_proxy_init(void)
+TEE_Result tii_sci_clear_init(void)
 {
 	struct k3_sec_proxy_thread *thread;
 	int rx_thread = SEC_PROXY_RESPONSE_THREAD;

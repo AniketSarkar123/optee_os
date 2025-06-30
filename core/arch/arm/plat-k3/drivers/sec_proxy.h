@@ -6,8 +6,11 @@
  *	Manorit Chawdhry <m-chawdhry@ti.com>
  */
 
-#ifndef SEC_PROXY_H
-#define SEC_PROXY_H
+// #ifndef SEC_PROXY_H
+// #define SEC_PROXY_H
+
+#ifndef TI_SCI_TRANSPORT_H
+#define TI_SCI_TRANSPORT_H
 
 #include <stddef.h>
 #include <stdint.h>

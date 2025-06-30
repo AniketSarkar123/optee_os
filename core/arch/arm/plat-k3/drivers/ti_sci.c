@@ -16,9 +16,12 @@
 #include <tee_api_defines.h>
 #include <trace.h>
 
-#include "sec_proxy.h"
+// #include "sec_proxy.h"
 #include "ti_sci.h"
-#include "ti_sci_protocol.h"
+#include<ti_sci_transport.h>
+#define TI_SCI_MAX_MESSAGE_SIZE		52
+ static uint8_t message_seq=0;
+
 
 
 /**
@@ -27,8 +30,8 @@
  * @rx_message:	Receive message
  */
 struct ti_sci_xfer {
-	struct k3_sec_proxy_msg tx_message;
-	struct k3_sec_proxy_msg rx_message;
+	struct ti_sci_msg tx_message;
+	struct ti_sci_msg rx_message;
 };
 
 /**
@@ -57,21 +60,30 @@ static int ti_sci_setup_xfer(uint16_t msg_type, uint32_t msg_flags,
 	struct ti_sci_msg_hdr *hdr = NULL;
 
 	/* Ensure we have sane transfer sizes */
-	if (rx_message_size > SEC_PROXY_MAX_MSG_SIZE ||
-	    tx_message_size > SEC_PROXY_MAX_MSG_SIZE ||
-	    rx_message_size < sizeof(*hdr) ||
+	if (rx_message_size > TI_SCI_MAX_MESSAGE_SIZE ||
+	    tx_message_size > TI_SCI_MAX_MESSAGE_SIZE ||
+	     rx_message_size < sizeof(*hdr) ||
 	    tx_message_size < sizeof(*hdr)) {
 		EMSG("Message transfer size not sane");
 		return TEE_ERROR_SHORT_BUFFER;
 	}
 
 	hdr = (struct ti_sci_msg_hdr *)tx_buf;
+	hdr->sec_hdr.checksum = 0;
+	//hdr->sec_hdr.reserved = 0;
+	hdr->seq=++message_seq;
 	hdr->type = msg_type;
-	hdr->host = OPTEE_HOST_ID;
-	hdr->flags = msg_flags | TI_SCI_FLAG_REQ_ACK_ON_PROCESSED;
+	//hdr->seq = 0;
+	hdr->host = TI_SCI_HOST_ID;
+	hdr->flags = msg_flags;
+	if(rx_message_size!=0U){
+		hdr->flags |= TI_SCI_FLAG_REQ_ACK_ON_PROCESSED;
+	}
 
 	xfer->tx_message.buf = tx_buf;
 	xfer->tx_message.len = tx_message_size;
+
+	
 
 	xfer->rx_message.buf = rx_buf;
 	xfer->rx_message.len = rx_message_size;
@@ -88,41 +100,72 @@ static int ti_sci_setup_xfer(uint16_t msg_type, uint32_t msg_flags,
  */
 static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 {
-	struct k3_sec_proxy_msg *txmsg = &xfer->tx_message;
-	struct k3_sec_proxy_msg *rxmsg = &xfer->rx_message;
+	struct ti_sci_msg *txmsg = &xfer->tx_message;
+	struct ti_sci_msg *rxmsg = &xfer->rx_message;
 	struct ti_sci_msg_hdr *txhdr = (struct ti_sci_msg_hdr *)txmsg->buf;
 	struct ti_sci_msg_hdr *rxhdr = (struct ti_sci_msg_hdr *)rxmsg->buf;
-	static uint8_t message_sequence;
+	// uint8_t secure_buf[TI_SCI_MAX_MESSAGE_SIZE];
+	//static uint8_t message_sequence;
 	static struct mutex ti_sci_mutex_lock = MUTEX_INITIALIZER;
 	unsigned int retry = 5;
 	int ret = 0;
+	// struct ti_sci_secure_msg_hdr *secure_hdr= (struct ti_sci_secure_msg_hdr*)secure_buf;
+	// secure_hdr->checksum = 0;
+	// secure_hdr->reserved = 0;
+
+	// memcpy(&secure_buf[sizeof(struct ti_sci_secure_msg_hdr)], xfer->tx_message.buf,
+	// 	xfer->tx_message.len);
+	// xfer->tx_message.buf = secure_buf;
+	// xfer->tx_message.len += sizeof(struct ti_sci_secure_msg_hdr);
+
+
+
+	IMSG("Sending message type %"PRIx16" with flags 0x%"PRIx32,
+	     txhdr->type, txhdr->flags);
+	IMSG("Message size: tx %zu rx %zu",
+	     txmsg->len, rxmsg->len);
+
+	// IMSG("txmsg info:\n");
+	// for(size_t i = 0; i < txmsg->len; i++)
+	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)txmsg->buf)[i]);
 
 	mutex_lock(&ti_sci_mutex_lock);
 
-	message_sequence++;
-	txhdr->seq = message_sequence;
+	//message_sequence++;
+	//txhdr->seq = message_sequence;
+
+	 ret=ti_sci_clear_init();
+	 if(ret){
+		EMSG("Failed to clear init (%d)", ret);
+		goto unlock;
+	 }
 
 	/* Send the message */
-	ret = k3_sec_proxy_send(txmsg);
+
+	//while(1);
+	
+	ret = ti_sci_transport_send(txmsg);
 	if (ret) {
 		EMSG("Message sending failed (%d)", ret);
 		goto unlock;
 	}
 
-	FMSG("Sending %"PRIx16" with seq %"PRIu8" host %"PRIu8,
+	IMSG("Sending %"PRIx16" with seq %"PRIu8" host %"PRIu8,
 	     txhdr->type, txhdr->seq, txhdr->host);
+
+	//while(1);
 
 	/* Get the response */
 	for (; retry > 0; retry--) {
 		/* Receive the response */
-		ret = k3_sec_proxy_recv(rxmsg);
+		ret = ti_sci_transport_recv(rxmsg);
 		if (ret) {
 			EMSG("Message receive failed (%d)", ret);
 			goto unlock;
 		}
 
 		/* Sanity check for message response */
-		if (rxhdr->seq == message_sequence)
+		if (rxhdr->seq == message_seq)
 			break;
 
 		IMSG("Message with sequence ID %"PRIu8" is not expected",
@@ -150,20 +193,90 @@ unlock:
 
 int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 {
-	struct ti_sci_msg_req_version req = { };
+	struct ti_sci_msg_req_version req= { };
+	// struct ti_sci_msg_hdr hdr = { 
+	// 	.type = TI_SCI_MSG_VERSION,
+	// 	.host = OPTEE_HOST_ID,
+	// 	.seq = 1,
+	// 	.flags = 0
+	// };
+
 	struct ti_sci_xfer xfer = { };
 	int ret = 0;
+	mailbox_init();
+	
 
 	ret = ti_sci_setup_xfer(TI_SCI_MSG_VERSION, 0x0,
 				&req, sizeof(req),
 				rev_info, sizeof(*rev_info),
 				&xfer);
+	IMSG("Size of the request is %zu\n", sizeof(req));
+	IMSG("Size of the response is %zu\n", sizeof(*rev_info));
+	
 	if (ret)
 		return ret;
+	IMSG("Rev info details:\n");
+	IMSG("firmware_description: %s", rev_info->firmware_description);
+	IMSG("firmware_revision: %d", rev_info->firmware_revision);
+	IMSG("abi_major: %d", rev_info->abi_major);
+	IMSG("abi_minor: %d", rev_info->abi_minor);
+	IMSG("sub_version: %d", rev_info->sub_version);
+	IMSG("patch_version: %d", rev_info->patch_version);
 
+	IMSG("req details:\n");
+	IMSG("type: %d", req.hdr.type);
+	IMSG("host: %d", req.hdr.host);
+	IMSG("seq: %d", req.hdr.seq);
+	IMSG("flags: %d", req.hdr.flags);
+
+	IMSG("xfer details:\n");
+	IMSG("tx_message len: %zu", xfer.tx_message.len);
+	IMSG("rx_message len: %zu", xfer.rx_message.len);
+	IMSG("tx_message buf: %p", xfer.tx_message.buf);
+	IMSG("rx_message buf: %p", xfer.rx_message.buf);
+	IMSG("tx_message info:\n");
+	// for (size_t i = 0; i < xfer.tx_message.len; i++)
+	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.tx_message.buf)[i]);
+
+	// IMSG("rx_message info:\n");
+	// for (size_t i = 0; i < xfer.rx_message.len; i++)
+	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.rx_message.buf)[i]);
+	
 	ret = ti_sci_do_xfer(&xfer);
-	if (ret)
+
+
+	IMSG("req details:\n");
+	IMSG("type: %d", req.hdr.type);
+	IMSG("host: %d", req.hdr.host);
+	IMSG("seq: %d", req.hdr.seq);
+	IMSG("flags: %d", req.hdr.flags);
+
+	IMSG("\n");
+	IMSG("xfer details:\n");
+	IMSG("tx_message len: %zu", xfer.tx_message.len);
+	IMSG("rx_message len: %zu", xfer.rx_message.len);
+	IMSG("tx_message buf: %p", xfer.tx_message.buf);
+	IMSG("rx_message buf: %p", xfer.rx_message.buf);
+
+	// IMSG("tx_message info:\n");
+	// for (size_t i = 0; i < xfer.tx_message.len; i++)
+	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.tx_message.buf)[i]);
+
+	// IMSG("rx_message info:\n");
+	// for (size_t i = 0; i < xfer.rx_message.len; i++)
+	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.rx_message.buf)[i]);
+	
+	if (ret){
+		EMSG("Transfer failed\n");
 		return ret;
+	}
+	// memcpy(version->firmware_description, rev_info.firmware_description,
+	// 	sizeof(rev_info.firmware_description));
+	// version->abi_major = rev_info.abi_major;
+	// version->abi_minor = rev_info.abi_minor;
+	// version->firmware_revision = rev_info.firmware_revision;
+	// version->sub_version = rev_info.sub_version;
+	// version->patch_version = rev_info.patch_version;
 
 	return 0;
 }
@@ -527,6 +640,8 @@ int ti_sci_init(void)
 {
 	struct ti_sci_msg_resp_version rev_info = { };
 	int ret = 0;
+	// generic_delay_timer_init();
+	// ti_init_scmi_server();
 
 	ret = ti_sci_get_revision(&rev_info);
 	if (ret) {

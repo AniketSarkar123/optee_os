@@ -42,6 +42,10 @@
 #include <trace.h>
 #include <utee_defines.h>
 #include <util.h>
+#include<mailbox.h>
+#include<ti_sci_transport.h>
+#include<ti_sci_protocol.h>
+#include<ti_sci.h>
 
 #include <platform_config.h>
 
@@ -1039,7 +1043,8 @@ void __weak boot_init_primary_late(unsigned long fdt __unused,
 }
 
 void __weak boot_init_primary_runtime(void)
-{
+{	
+	
 	thread_init_primary();
 	IMSG("OP-TEE version: %s", core_v_str);
 	if (IS_ENABLED(CFG_INSECURE)) {
@@ -1047,6 +1052,15 @@ void __weak boot_init_primary_runtime(void)
 		IMSG("WARNING: Please check https://optee.readthedocs.io/en/latest/architecture/porting_guidelines.html");
 	}
 	IMSG("Primary CPU initializing");
+	IMSG("Hi test log!\n");
+	test_function();
+	
+	
+
+	
+	//ti_mailbox_poll_rx_status();
+	// IMSG("CPU %zu running on %s\n", get_core_pos(),
+	//      cpu_mfr_and_part_string());
 #ifdef CFG_CORE_ASLR
 	DMSG("Executing at offset %#lx with virtual load address %#"PRIxVA,
 	     (unsigned long)boot_mmu_config.map_offset, VCORE_START_VA);
@@ -1088,14 +1102,50 @@ void __weak boot_init_primary_runtime(void)
 }
 
 void __weak boot_init_primary_final(void)
-{
+{	
+	// uint32_t ret,recv_ret;
+	// struct ti_sci_msg test_msg;
+	// struct ti_sci_msg recv_msg;
+	// uint8_t recv_buf[56];
+    // uint8_t buffer[56];
+	// mailbox_init();
+	 
+   
+
+    // Now, after all declarations, you can have code
+    // buffer[0] = 0x01;
+	// buffer[1]= 0x02;
+	// buffer[2] = 0x03;
+	// buffer[3] = 0x04;
+	// buffer[4] = 0x05;
+    // test_msg.len = 1;
+    // test_msg.buf = buffer;
+
+	// recv_msg.len = 10; // or the expected length
+	// recv_msg.buf = recv_buf;
+	struct ti_sci_msg_resp_version res;
+	uint32_t ret;
+    
 	if (!IS_ENABLED(CFG_NS_VIRTUALIZATION))
 		call_driver_initcalls();
 
 	call_finalcalls();
 
 	IMSG("Primary CPU switching to normal world boot");
-
+	// ret = ti_sci_transport_send(&test_msg);
+	// IMSG("ti_sci_transport_send returned %d", ret);
+	// recv_ret= ti_sci_transport_recv(&recv_msg);
+	// IMSG("ti_sci_transport_recv returned %d", recv_ret);
+	ret=ti_sci_get_revision(&res);
+	if(ret==0)
+	{
+		IMSG("TI SCI running successfully");
+	}
+	else
+	{
+		IMSG("TI SCI version: error %d", ret);
+	}
+	IMSG("Hello!\n");
 	/* Mask native interrupts before switching to the normal world */
 	if (!IS_ENABLED(CFG_NS_VIRTUALIZATION))
 		thread_set_exceptions(thread_get_exceptions() |
@@ -1103,9 +1153,10 @@ void __weak boot_init_primary_final(void)
 }
 
 static void init_secondary_helper(void)
-{
+{	
+	
 	IMSG("Secondary CPU %zu initializing", get_core_pos());
-
+	
 	/*
 	 * Mask asynchronous exceptions before switch to the thread vector
 	 * as the thread handler requires those to be masked while
