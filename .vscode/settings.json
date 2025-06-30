@@ -21,6 +21,7 @@
         "ti_sci_protocol.h": "c",
         "compiler.h": "c",
         "util.h": "c",
-        "stdint.h": "c"
+        "stdint.h": "c",
+        "mailbox.h": "c"
     }
 }

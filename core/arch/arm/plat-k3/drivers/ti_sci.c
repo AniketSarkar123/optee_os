@@ -104,19 +104,11 @@ static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 	struct ti_sci_msg *rxmsg = &xfer->rx_message;
 	struct ti_sci_msg_hdr *txhdr = (struct ti_sci_msg_hdr *)txmsg->buf;
 	struct ti_sci_msg_hdr *rxhdr = (struct ti_sci_msg_hdr *)rxmsg->buf;
-	// uint8_t secure_buf[TI_SCI_MAX_MESSAGE_SIZE];
-	//static uint8_t message_sequence;
+
 	static struct mutex ti_sci_mutex_lock = MUTEX_INITIALIZER;
 	unsigned int retry = 5;
 	int ret = 0;
-	// struct ti_sci_secure_msg_hdr *secure_hdr= (struct ti_sci_secure_msg_hdr*)secure_buf;
-	// secure_hdr->checksum = 0;
-	// secure_hdr->reserved = 0;
-
-	// memcpy(&secure_buf[sizeof(struct ti_sci_secure_msg_hdr)], xfer->tx_message.buf,
-	// 	xfer->tx_message.len);
-	// xfer->tx_message.buf = secure_buf;
-	// xfer->tx_message.len += sizeof(struct ti_sci_secure_msg_hdr);
+	
 
 
 
@@ -125,15 +117,10 @@ static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 	IMSG("Message size: tx %zu rx %zu",
 	     txmsg->len, rxmsg->len);
 
-	// IMSG("txmsg info:\n");
-	// for(size_t i = 0; i < txmsg->len; i++)
-	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)txmsg->buf)[i]);
-
+	
 	mutex_lock(&ti_sci_mutex_lock);
 
-	//message_sequence++;
-	//txhdr->seq = message_sequence;
-
+	
 	 ret=ti_sci_clear_init();
 	 if(ret){
 		EMSG("Failed to clear init (%d)", ret);
@@ -142,7 +129,7 @@ static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 
 	/* Send the message */
 
-	//while(1);
+	
 	
 	ret = ti_sci_transport_send(txmsg);
 	if (ret) {
@@ -153,8 +140,7 @@ static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 	IMSG("Sending %"PRIx16" with seq %"PRIu8" host %"PRIu8,
 	     txhdr->type, txhdr->seq, txhdr->host);
 
-	//while(1);
-
+	
 	/* Get the response */
 	for (; retry > 0; retry--) {
 		/* Receive the response */
@@ -194,12 +180,7 @@ unlock:
 int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 {
 	struct ti_sci_msg_req_version req= { };
-	// struct ti_sci_msg_hdr hdr = { 
-	// 	.type = TI_SCI_MSG_VERSION,
-	// 	.host = OPTEE_HOST_ID,
-	// 	.seq = 1,
-	// 	.flags = 0
-	// };
+
 
 	struct ti_sci_xfer xfer = { };
 	int ret = 0;
@@ -235,12 +216,7 @@ int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 	IMSG("tx_message buf: %p", xfer.tx_message.buf);
 	IMSG("rx_message buf: %p", xfer.rx_message.buf);
 	IMSG("tx_message info:\n");
-	// for (size_t i = 0; i < xfer.tx_message.len; i++)
-	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.tx_message.buf)[i]);
-
-	// IMSG("rx_message info:\n");
-	// for (size_t i = 0; i < xfer.rx_message.len; i++)
-	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.rx_message.buf)[i]);
+	
 	
 	ret = ti_sci_do_xfer(&xfer);
 
@@ -258,25 +234,13 @@ int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 	IMSG("tx_message buf: %p", xfer.tx_message.buf);
 	IMSG("rx_message buf: %p", xfer.rx_message.buf);
 
-	// IMSG("tx_message info:\n");
-	// for (size_t i = 0; i < xfer.tx_message.len; i++)
-	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.tx_message.buf)[i]);
-
-	// IMSG("rx_message info:\n");
-	// for (size_t i = 0; i < xfer.rx_message.len; i++)
-	// 	IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t *)xfer.rx_message.buf)[i]);
+	
 	
 	if (ret){
 		EMSG("Transfer failed\n");
 		return ret;
 	}
-	// memcpy(version->firmware_description, rev_info.firmware_description,
-	// 	sizeof(rev_info.firmware_description));
-	// version->abi_major = rev_info.abi_major;
-	// version->abi_minor = rev_info.abi_minor;
-	// version->firmware_revision = rev_info.firmware_revision;
-	// version->sub_version = rev_info.sub_version;
-	// version->patch_version = rev_info.patch_version;
+	
 
 	return 0;
 }
