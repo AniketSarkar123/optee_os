@@ -22,6 +22,10 @@
         "compiler.h": "c",
         "util.h": "c",
         "stdint.h": "c",
-        "mailbox.h": "c"
+        "mailbox.h": "c",
+        "core_mmu.h": "c",
+        "printk.h": "c",
+        "cstdint": "c",
+        "utee_syscalls.h": "c"
     }
 }

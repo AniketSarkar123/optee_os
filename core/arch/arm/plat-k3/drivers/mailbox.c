@@ -9,6 +9,9 @@
 #include<mm/core_memprot.h>
 #include<mm/core_mmu.h>
 #include <ti_sci_protocol.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<stdint.h>
 
 void test_function(void){
     IMSG("This is a test function in the K3 Mailbox driver\n");
@@ -24,6 +27,7 @@ void test_function(void){
 #define MAILBOX_RX_START_REGION 0x70815000UL
 #define MAILBOX_MAX_MESSAGE_SIZE	56U
 #define MAILBOX_TX_REGION_SIZE   0x7081413FUL
+//#define MAILBOX_TIFS_RESP 0x70815080UL
 
 // #define TIFS_MESSAGE_RESP_START_REGION		(0x70814000)
 // #define TIFS_MESSAGE_RESP_END_REGION		(0x7081513F)
@@ -34,13 +38,15 @@ static void *mailbox_tx_sram_va = NULL;
 static void *mailbox_rx_sram_va = NULL;
 
 
+
+
 void mailbox_init(void)
 {
     mailbox_rx_base = (void *)core_mmu_get_va(TI_MAILBOX_RX_BASE, MEM_AREA_IO_SEC, 0x1000);
     mailbox_tx_base = (void *)core_mmu_get_va(TI_MAILBOX_TX_BASE, MEM_AREA_IO_SEC, 0x1000);
-    mailbox_tx_sram_va = (void *)core_mmu_get_va(MAILBOX_TX_START_REGION, MEM_AREA_IO_SEC, MAILBOX_MAX_MESSAGE_SIZE);
-    mailbox_rx_sram_va = (void *)core_mmu_get_va(MAILBOX_RX_START_REGION, MEM_AREA_IO_SEC, MAILBOX_MAX_MESSAGE_SIZE);
-
+    mailbox_tx_sram_va = (void *)core_mmu_get_va(MAILBOX_TX_START_REGION, MEM_AREA_IO_SEC, 0x1000);
+    mailbox_rx_sram_va = (void *)core_mmu_get_va(MAILBOX_RX_START_REGION, MEM_AREA_IO_SEC, 0x1000);
+   
     if (!mailbox_rx_base || !mailbox_tx_base || !mailbox_tx_sram_va || !mailbox_rx_sram_va) {
         EMSG("Failed to map mailbox MMIO or SRAM regions: rx=%p tx=%p tx_sram=%p rx_sram=%p",
              mailbox_rx_base, mailbox_tx_base, mailbox_tx_sram_va, mailbox_rx_sram_va);
@@ -72,6 +78,8 @@ static int8_t ti_mailbox_poll_rx_status(void){
         udelay(10000); // Poll every 1ms
     }
 
+    IMSG("Mailbox RX status: %u", num_messages_pending);
+    
    
 
     return 0;
@@ -100,9 +108,9 @@ uint32_t ti_sci_transport_send(const struct ti_sci_msg *msg) {
     for(uint32_t i=0;i<num_bytes;i++){
         IMSG("Byte[%d]: 0x%02x", i, ((uint8_t*)msg->buf)[i]);
     }
-
-    io_write32((vaddr_t)mailbox_tx_base + TI_MAILBOX_MSG, (uint64_t)(void *)dst_ptr);
     pa=virt_to_phys(dst_ptr);
+    io_write32((vaddr_t)mailbox_tx_base + TI_MAILBOX_MSG, (uint32_t)pa);
+    
     IMSG("Message send VA: 0x%lx PA: 0x%lx", (vaddr_t)dst_ptr, pa);
     IMSG("Sent message of length %u to TIFS", num_bytes);
     return 0;
@@ -112,11 +120,15 @@ uint32_t ti_sci_transport_send(const struct ti_sci_msg *msg) {
 uint32_t ti_sci_transport_recv(const struct ti_sci_msg *msg) {
     uint32_t num_bytes;
     uint64_t rcv_addr;
+    char hex_str[20];
+    uint32_t val;
+    uint8_t* rcv_va;
 
     if (!msg)
         return -1;
 
-    num_bytes = msg->len;
+    //num_bytes = msg->len;
+     num_bytes=msg->len/sizeof(uint8_t);
 
     if (ti_mailbox_poll_rx_status() != 0) {
         EMSG("Mailbox RX status polling failed");
@@ -125,9 +137,18 @@ uint32_t ti_sci_transport_recv(const struct ti_sci_msg *msg) {
 
     // Read SRAM address from mailbox register
     rcv_addr = io_read32((vaddr_t)mailbox_rx_base + TI_MAILBOX_MSG);
+    // IMSG("Raw data received:\n");
+    // for(uint32_t i=0;i<num_bytes;i++){
+    //     IMSG("Byte[%d]: 0x%02x",i,((uint8_t*)msg->buf)[i]);
+    // }
 
+    IMSG("The value of the receive address is 0x%lx", rcv_addr);
 
-    if(rcv_addr != MAILBOX_RX_START_REGION){
+    snprintf(hex_str, sizeof(hex_str), "0x%lx", rcv_addr);
+    IMSG("Hex value of rcv_addr is: %s", hex_str);
+    val=(uint32_t)strtoul(hex_str, NULL, 0);
+    
+    if(val<MAILBOX_RX_START_REGION){
         EMSG("Message address %lu is not valid\n",rcv_addr);
         return -1;
     }
@@ -137,8 +158,24 @@ uint32_t ti_sci_transport_recv(const struct ti_sci_msg *msg) {
         return -1;
     }
 
-    memmove(msg->buf,(uint8_t *)(rcv_addr),num_bytes);
+    rcv_va=(uint8_t*)core_mmu_get_va(rcv_addr, MEM_AREA_IO_SEC, 0x1000);
+    if (!rcv_va) {
+        EMSG("Failed to get virtual address for RX");
+        return -1;
+    }
 
+    //num_bytes+=sizeof(struct ti_sci_secure_msg_hdr);
+    for(uint32_t i=0;i<num_bytes;i++){
+        ((uint8_t *)msg->buf)[i] = *(uint8_t *)(rcv_va);
+        rcv_va += sizeof(uint8_t);
+    }
+
+    IMSG("Received message raw data:\n");
+    for(uint32_t i=0;i<num_bytes;i++){
+        IMSG("Byte[%d]: 0x%02x", i, ((uint8_t*)msg->buf)[i]);
+    }
+    //memmove(msg->buf, &msg->buf[sizeof(struct ti_sci_secure_msg_hdr)], msg->len);
+    IMSG("Received message of length %u from TIFS", num_bytes);
 
     return 0;
 

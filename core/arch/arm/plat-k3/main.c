@@ -32,8 +32,8 @@ register_phys_mem_pgdir(MEM_AREA_IO_SEC, SEC_PROXY_SCFG_BASE,
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, SEC_PROXY_RT_BASE, SEC_PROXY_RT_SIZE);
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, TI_MAILBOX_TX_BASE, 0x1000);
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, TI_MAILBOX_RX_BASE, 0x1000);
-register_phys_mem_pgdir(MEM_AREA_IO_SEC, MAILBOX_TX_START_REGION, MAILBOX_MAX_MESSAGE_SIZE);
-register_phys_mem_pgdir(MEM_AREA_IO_SEC, MAILBOX_RX_START_REGION, MAILBOX_MAX_MESSAGE_SIZE);
+register_phys_mem_pgdir(MEM_AREA_IO_SEC, MAILBOX_TX_START_REGION, 0x1000);
+register_phys_mem_pgdir(MEM_AREA_IO_SEC, MAILBOX_RX_START_REGION, 0x1000);
 register_ddr(DRAM0_BASE, DRAM0_SIZE);
 register_ddr(DRAM1_BASE, DRAM1_SIZE);
 

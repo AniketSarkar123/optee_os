@@ -70,7 +70,7 @@ static int ti_sci_setup_xfer(uint16_t msg_type, uint32_t msg_flags,
 
 	hdr = (struct ti_sci_msg_hdr *)tx_buf;
 	hdr->sec_hdr.checksum = 0;
-	//hdr->sec_hdr.reserved = 0;
+	hdr->sec_hdr.reserved = 0;
 	hdr->seq=++message_seq;
 	hdr->type = msg_type;
 	//hdr->seq = 0;
@@ -179,12 +179,18 @@ unlock:
 
 int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 {
-	struct ti_sci_msg_req_version req= { };
+	struct ti_sci_msg_req_version req = { };
 
 
 	struct ti_sci_xfer xfer = { };
 	int ret = 0;
 	mailbox_init();
+
+	IMSG("rxmsg info:\n");
+	IMSG("Length of rxmsg is %zu\n", xfer.rx_message.len);
+	for(size_t i=0;i<xfer.rx_message.len;i++){
+		IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t*)xfer.rx_message.buf)[i]);
+	}
 	
 
 	ret = ti_sci_setup_xfer(TI_SCI_MSG_VERSION, 0x0,
@@ -193,6 +199,16 @@ int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 				&xfer);
 	IMSG("Size of the request is %zu\n", sizeof(req));
 	IMSG("Size of the response is %zu\n", sizeof(*rev_info));
+
+	IMSG("txmsg info:\n");
+	for(size_t i=0;i<xfer.tx_message.len;i++){
+		IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t*)xfer.tx_message.buf)[i]);
+	}
+
+	IMSG("rxmsg info:\n");
+	for(size_t i=0;i<xfer.rx_message.len;i++){
+		IMSG("Byte[%zu]: 0x%02x", i, ((uint8_t*)xfer.rx_message.buf)[i]);
+	}
 	
 	if (ret)
 		return ret;
