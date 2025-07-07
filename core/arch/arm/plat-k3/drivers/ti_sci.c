@@ -15,10 +15,11 @@
 #include <string_ext.h>
 #include <tee_api_defines.h>
 #include <trace.h>
-
-#include "sec_proxy.h"
 #include "ti_sci.h"
-#include "ti_sci_protocol.h"
+#include<ti_sci_transport.h>
+#define TI_SCI_MAX_MESSAGE_SIZE		56
+ static uint8_t message_seq=0;
+
 
 
 /**
@@ -27,8 +28,8 @@
  * @rx_message:	Receive message
  */
 struct ti_sci_xfer {
-	struct k3_sec_proxy_msg tx_message;
-	struct k3_sec_proxy_msg rx_message;
+	struct ti_sci_msg tx_message;
+	struct ti_sci_msg rx_message;
 };
 
 /**
@@ -57,18 +58,23 @@ static int ti_sci_setup_xfer(uint16_t msg_type, uint32_t msg_flags,
 	struct ti_sci_msg_hdr *hdr = NULL;
 
 	/* Ensure we have sane transfer sizes */
-	if (rx_message_size > SEC_PROXY_MAX_MSG_SIZE ||
-	    tx_message_size > SEC_PROXY_MAX_MSG_SIZE ||
-	    rx_message_size < sizeof(*hdr) ||
+	if (rx_message_size > TI_SCI_MAX_MESSAGE_SIZE ||
+	    tx_message_size > TI_SCI_MAX_MESSAGE_SIZE ||
+	     rx_message_size < sizeof(*hdr) ||
 	    tx_message_size < sizeof(*hdr)) {
 		EMSG("Message transfer size not sane");
 		return TEE_ERROR_SHORT_BUFFER;
 	}
 
 	hdr = (struct ti_sci_msg_hdr *)tx_buf;
+	hdr->sec_hdr.checksum = 0;
+	hdr->seq=++message_seq;
 	hdr->type = msg_type;
-	hdr->host = OPTEE_HOST_ID;
-	hdr->flags = msg_flags | TI_SCI_FLAG_REQ_ACK_ON_PROCESSED;
+	hdr->host = TI_SCI_HOST_ID;
+	hdr->flags = msg_flags;
+	if(rx_message_size!=0U){
+		hdr->flags |= TI_SCI_FLAG_REQ_ACK_ON_PROCESSED;
+	}
 
 	xfer->tx_message.buf = tx_buf;
 	xfer->tx_message.len = tx_message_size;
@@ -88,41 +94,43 @@ static int ti_sci_setup_xfer(uint16_t msg_type, uint32_t msg_flags,
  */
 static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 {
-	struct k3_sec_proxy_msg *txmsg = &xfer->tx_message;
-	struct k3_sec_proxy_msg *rxmsg = &xfer->rx_message;
+	struct ti_sci_msg *txmsg = &xfer->tx_message;
+	struct ti_sci_msg *rxmsg = &xfer->rx_message;
 	struct ti_sci_msg_hdr *txhdr = (struct ti_sci_msg_hdr *)txmsg->buf;
 	struct ti_sci_msg_hdr *rxhdr = (struct ti_sci_msg_hdr *)rxmsg->buf;
-	static uint8_t message_sequence;
+
 	static struct mutex ti_sci_mutex_lock = MUTEX_INITIALIZER;
 	unsigned int retry = 5;
 	int ret = 0;
-
 	mutex_lock(&ti_sci_mutex_lock);
-
-	message_sequence++;
-	txhdr->seq = message_sequence;
+	ret=ti_sci_clear_init();
+	if(ret){
+		EMSG("Failed to clear init (%d)", ret);
+		goto unlock;
+	}
 
 	/* Send the message */
-	ret = k3_sec_proxy_send(txmsg);
+
+	ret = ti_sci_transport_send(txmsg);
 	if (ret) {
 		EMSG("Message sending failed (%d)", ret);
 		goto unlock;
 	}
 
-	FMSG("Sending %"PRIx16" with seq %"PRIu8" host %"PRIu8,
+	IMSG("Sending %"PRIx16" with seq %"PRIu8" host %"PRIu8,
 	     txhdr->type, txhdr->seq, txhdr->host);
 
 	/* Get the response */
 	for (; retry > 0; retry--) {
 		/* Receive the response */
-		ret = k3_sec_proxy_recv(rxmsg);
+		ret = ti_sci_transport_recv(rxmsg);
 		if (ret) {
 			EMSG("Message receive failed (%d)", ret);
 			goto unlock;
 		}
 
 		/* Sanity check for message response */
-		if (rxhdr->seq == message_sequence)
+		if (rxhdr->seq == message_seq)
 			break;
 
 		IMSG("Message with sequence ID %"PRIu8" is not expected",
@@ -153,17 +161,21 @@ int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 	struct ti_sci_msg_req_version req = { };
 	struct ti_sci_xfer xfer = { };
 	int ret = 0;
-
 	ret = ti_sci_setup_xfer(TI_SCI_MSG_VERSION, 0x0,
 				&req, sizeof(req),
 				rev_info, sizeof(*rev_info),
 				&xfer);
-	if (ret)
+	
+	if (ret){
 		return ret;
-
+	}
+	
 	ret = ti_sci_do_xfer(&xfer);
-	if (ret)
+
+	if (ret){
+		EMSG("Transfer failed\n");
 		return ret;
+	}
 
 	return 0;
 }
@@ -313,7 +325,6 @@ int ti_sci_get_dkek(uint8_t sa2ul_instance,
 	struct ti_sci_msg_resp_sa2ul_get_dkek resp = { };
 	struct ti_sci_xfer xfer = { };
 	int ret = 0;
-
 	ret = ti_sci_setup_xfer(TI_SCI_MSG_SA2UL_GET_DKEK, 0,
 				&req, sizeof(req), &resp, sizeof(resp), &xfer);
 	if (ret)
@@ -527,6 +538,8 @@ int ti_sci_init(void)
 {
 	struct ti_sci_msg_resp_version rev_info = { };
 	int ret = 0;
+	// generic_delay_timer_init();
+	// ti_init_scmi_server();
 
 	ret = ti_sci_get_revision(&rev_info);
 	if (ret) {
