@@ -16,11 +16,9 @@
 #include <tee_api_defines.h>
 #include <trace.h>
 #include "ti_sci.h"
-#include<ti_sci_transport.h>
+#include <ti_sci_transport.h>
 #define TI_SCI_MAX_MESSAGE_SIZE		56
- static uint8_t message_seq=0;
-
-
+static uint8_t message_seq;
 
 /**
  * struct ti_sci_xfer - Structure representing a message flow
@@ -68,13 +66,12 @@ static int ti_sci_setup_xfer(uint16_t msg_type, uint32_t msg_flags,
 
 	hdr = (struct ti_sci_msg_hdr *)tx_buf;
 	hdr->sec_hdr.checksum = 0;
-	hdr->seq=++message_seq;
+	hdr->seq = ++message_seq;
 	hdr->type = msg_type;
 	hdr->host = TI_SCI_HOST_ID;
 	hdr->flags = msg_flags;
-	if(rx_message_size!=0U){
+	if (rx_message_size != 0U)
 		hdr->flags |= TI_SCI_FLAG_REQ_ACK_ON_PROCESSED;
-	}
 
 	xfer->tx_message.buf = tx_buf;
 	xfer->tx_message.len = tx_message_size;
@@ -103,8 +100,8 @@ static int ti_sci_do_xfer(struct ti_sci_xfer *xfer)
 	unsigned int retry = 5;
 	int ret = 0;
 	mutex_lock(&ti_sci_mutex_lock);
-	ret=ti_sci_clear_init();
-	if(ret){
+	ret = ti_sci_clear_init();
+	if (ret) {
 		EMSG("Failed to clear init (%d)", ret);
 		goto unlock;
 	}
@@ -166,13 +163,12 @@ int ti_sci_get_revision(struct ti_sci_msg_resp_version *rev_info)
 				rev_info, sizeof(*rev_info),
 				&xfer);
 	
-	if (ret){
+	if (ret)
 		return ret;
-	}
-	
+
 	ret = ti_sci_do_xfer(&xfer);
 
-	if (ret){
+	if (ret) {
 		EMSG("Transfer failed\n");
 		return ret;
 	}
@@ -538,9 +534,6 @@ int ti_sci_init(void)
 {
 	struct ti_sci_msg_resp_version rev_info = { };
 	int ret = 0;
-	// generic_delay_timer_init();
-	// ti_init_scmi_server();
-
 	ret = ti_sci_get_revision(&rev_info);
 	if (ret) {
 		EMSG("Unable to communicate with control firmware (%d)", ret);

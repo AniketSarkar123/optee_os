@@ -14,8 +14,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <trace.h>
 #include <ti_sci_transport.h>
+#include <trace.h>
 
 #define TI_SCI_MAX_MESSAGE_SIZE		52
 
@@ -62,6 +62,7 @@ struct k3_sec_proxy_thread {
  *				  sending/receiving data
  * @dir: Direction of the thread
  */
+
 static TEE_Result k3_sec_proxy_verify_thread(uint32_t dir)
 {
 	struct k3_sec_proxy_thread *spt = &spts[dir];
@@ -225,7 +226,6 @@ TEE_Result ti_sci_transport_recv(struct ti_sci_msg *msg)
 	 */
 	if (data_reg <= (spt->data + SEC_PROXY_DATA_END_OFFS))
 		io_read32(spt->data + SEC_PROXY_DATA_END_OFFS);
-	
 
 	return TEE_SUCCESS;
 }

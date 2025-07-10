@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: BSD-2-Clause */
 /*
  * Texas Instruments SCI Transport Protocol Header
  *
@@ -17,7 +18,7 @@
  * This is the structure for data used in ti_sci_transport_{send,recv}()
  */
 
-struct ti_sci_msg{
+struct ti_sci_msg {
 	size_t len;
 	uint8_t *buf;
 };
@@ -40,7 +41,7 @@ void mailbox_init(void);
  * Return: 0 on success, or an error code on failure.
  */
 
-uint32_t ti_sci_transport_send(const struct ti_sci_msg *msg);
+TEE_Result ti_sci_transport_send(const struct ti_sci_msg *msg);
 
 /**
  * ti_sci_transport_recv() - Receive data over a TISCI transport
@@ -51,7 +52,7 @@ uint32_t ti_sci_transport_send(const struct ti_sci_msg *msg);
  * Return: 0 on success, or an error code on failure.
  */
 
-uint32_t ti_sci_transport_recv(const struct ti_sci_msg *msg);
+TEE_Result ti_sci_transport_recv(const struct ti_sci_msg *msg);
 
 /**
  * ti_sci_clear_init() - Initialize the secure proxy threads
@@ -62,7 +63,6 @@ uint32_t ti_sci_transport_recv(const struct ti_sci_msg *msg);
  * Return: 0 on success, or an error code on failure.
  */
 
-uint32_t ti_sci_clear_init(void);
+TEE_Result ti_sci_clear_init(void);
 
-
-#endif
+#endif /* TI_SCI_TRANSPORT_H */
