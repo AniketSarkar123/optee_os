@@ -17,6 +17,7 @@
 #include <platform_config.h>
 #include <stdint.h>
 #include <string_ext.h>
+#include <ti_sci_transport.h>
 
 static struct serial8250_uart_data console_data;
 
@@ -29,6 +30,10 @@ register_phys_mem_pgdir(MEM_AREA_IO_SEC, SEC_PROXY_DATA_BASE,
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, SEC_PROXY_SCFG_BASE,
 			SEC_PROXY_SCFG_SIZE);
 register_phys_mem_pgdir(MEM_AREA_IO_SEC, SEC_PROXY_RT_BASE, SEC_PROXY_RT_SIZE);
+register_phys_mem_pgdir(MEM_AREA_IO_SEC, TI_MAILBOX_TX_BASE, 0x1000);
+register_phys_mem_pgdir(MEM_AREA_IO_SEC, TI_MAILBOX_RX_BASE, 0x1000);
+register_phys_mem_pgdir(MEM_AREA_IO_SEC, MAILBOX_TX_START_REGION, 0x1000);
+register_phys_mem_pgdir(MEM_AREA_IO_SEC, MAILBOX_RX_START_REGION, 0x1000);
 register_ddr(DRAM0_BASE, DRAM0_SIZE);
 register_ddr(DRAM1_BASE, DRAM1_SIZE);
 
@@ -49,14 +54,9 @@ void plat_console_init(void)
 	register_serial_console(&console_data.chip);
 }
 
-#ifndef PLATFORM_FLAVOR_am62lx
 static TEE_Result init_ti_sci(void)
 {
 	TEE_Result ret = TEE_SUCCESS;
-
-	ret = k3_sec_proxy_init();
-	if (ret != TEE_SUCCESS)
-		return ret;
 
 	ret = ti_sci_init();
 	if (ret)
@@ -112,4 +112,4 @@ TEE_Result tee_otp_get_hw_unique_key(struct tee_hw_unique_key *hwkey)
 
 	return TEE_SUCCESS;
 }
-#endif /* PLATFORM_FLAVOR_am62lx */
+
